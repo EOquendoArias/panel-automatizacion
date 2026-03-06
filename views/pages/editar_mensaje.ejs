@@ -1,0 +1,39 @@
+<div class="card">
+
+<h2>Editar mensaje</h2>
+
+<form action="/mensajes/actualizar/<%= mensaje.id %>" method="POST">
+
+<label>Mensaje</label>
+<br>
+
+<textarea name="texto" rows="5" style="width:100%"><%= mensaje.texto %></textarea>
+
+<br><br>
+
+<label>Grupos</label>
+<br>
+
+<input type="text" name="grupos" value="<%= mensaje.grupos %>" style="width:100%">
+
+<br><br>
+
+<label>Fecha</label>
+<br>
+
+<input type="date" name="fecha" value="<%= mensaje.fecha %>">
+
+<br><br>
+
+<label>Hora</label>
+<br>
+
+<input type="time" name="hora" value="<%= mensaje.hora %>">
+
+<br><br>
+
+<button type="submit">Guardar cambios</button>
+
+</form>
+
+</div>

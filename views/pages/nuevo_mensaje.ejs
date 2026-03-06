@@ -1,0 +1,149 @@
+<div class="card">
+
+<h2>Nuevo Mensaje</h2>
+
+<% if(error){ %>
+
+<div style="
+background:#fee2e2;
+color:#991b1b;
+padding:10px;
+border-radius:6px;
+margin-bottom:20px;
+">
+
+<%= error %>
+
+<br><br>
+
+Imagen WhatsApp: 5MB  
+Imagen Facebook: 8MB  
+Video WhatsApp: 12MB  
+Video Facebook: 50MB
+
+</div>
+
+<% } %>
+
+<form action="/guardar_mensaje" method="POST" enctype="multipart/form-data">
+
+<label>Mensaje</label>
+<br>
+<textarea name="texto" rows="5" style="width:100%"></textarea>
+
+<br><br>
+
+<label>Plataforma</label>
+<br>
+
+<input type="checkbox" name="plataforma" value="whatsapp"> WhatsApp
+<input type="checkbox" name="plataforma" value="facebook"> Facebook
+
+<br><br>
+
+<label>Imagen o Video</label>
+<br>
+
+<input type="file" name="archivo" id="archivo">
+<div id="preview" style="margin-top:15px;"></div>
+
+<p>
+
+<b>Límites permitidos</b><br>
+
+Imagen WhatsApp: 5MB<br>
+Imagen Facebook: 8MB<br>
+Video WhatsApp: 12MB<br>
+Video Facebook: 50MB
+
+</p>
+
+<label>Grupos de WhatsApp</label>
+<br>
+<input type="text" name="grupos" style="width:100%" placeholder="Ej: grupo1, grupo2">
+
+<br><br>
+
+<label>Fecha</label>
+<br>
+<input type="date" name="fecha">
+
+<br><br>
+
+<label>Hora</label>
+<br>
+<input type="time" name="hora">
+
+<br><br>
+
+<button type="submit">Guardar mensaje</button>
+
+</form>
+
+</div>
+
+<script>
+
+const inputFile = document.querySelector('input[name="archivo"]');
+const preview = document.getElementById("preview");
+
+inputFile.addEventListener("change", function(){
+
+const file = this.files[0];
+
+if(file){
+
+const reader = new FileReader();
+
+reader.onload = function(e){
+
+preview.src = e.target.result;
+preview.style.display = "block";
+
+}
+
+reader.readAsDataURL(file);
+
+}
+
+});
+
+</script>
+
+<script>
+
+document.getElementById("archivo").addEventListener("change", function(){
+
+const file = this.files[0];
+const preview = document.getElementById("preview");
+
+preview.innerHTML = "";
+
+if(!file) return;
+
+const url = URL.createObjectURL(file);
+
+if(file.type.startsWith("image")){
+
+preview.innerHTML = `
+<img src="${url}" style="
+max-width:300px;
+border-radius:8px;
+box-shadow:0 4px 10px rgba(0,0,0,0.2);
+">
+`;
+
+}
+
+else if(file.type.startsWith("video")){
+
+preview.innerHTML = `
+<video controls style="max-width:400px;border-radius:8px;">
+<source src="${url}">
+</video>
+`;
+
+}
+
+});
+</script>

@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+
+<meta charset="UTF-8">
+<title>Redimidos Panel</title>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+
+body{
+font-family:Arial;
+background:#f4f6f9;
+margin:0;
+}
+
+.sidebar{
+width:220px;
+background:#111827;
+color:white;
+height:100vh;
+position:fixed;
+padding:20px;
+}
+
+.menu a{
+display:block;
+color:white;
+text-decoration:none;
+margin:15px 0;
+}
+
+.menu a:hover{
+color:#60a5fa;
+}
+
+.content{
+margin-left:240px;
+}
+
+.topbar{
+height:60px;
+background:white;
+display:flex;
+align-items:center;
+justify-content:space-between;
+padding:0 30px;
+box-shadow:0 2px 10px rgba(0,0,0,0.05);
+}
+
+.main{
+padding:40px;
+}
+
+.card{
+background:white;
+padding:20px;
+border-radius:10px;
+box-shadow:0 2px 10px rgba(0,0,0,0.1);
+margin-bottom:20px;
+}
+
+table{
+width:100%;
+border-collapse:collapse;
+}
+
+th{
+background:#111827;
+color:white;
+padding:10px;
+}
+
+td{
+padding:10px;
+border-bottom:1px solid #ddd;
+}
+
+.active{
+background:#2563eb;
+color:white;
+padding:6px;
+border-radius:6px;
+}
+
+</style>
+
+</head>
+
+<body>
+
+<%- include('../partials/sidebar') %>
+
+<div class="content">
+
+<%- include('../partials/topbar') %>
+
+<div class="main">
+
+<%- body %>
+
+</div>
+
+</div>
+
+</body>
+</html>

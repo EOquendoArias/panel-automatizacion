@@ -1,0 +1,128 @@
+<div class="card">
+
+<h2>Mensajes Programados</h2>
+
+<table>
+
+<tr>
+<th>ID</th>
+<th>Mensaje</th>
+<th>Media</th>
+<th>Fecha</th>
+<th>Hora</th>
+<th>Estado</th>
+<th>Acciones</th>
+</tr>
+
+<% mensajes.forEach(function(m){ %>
+
+<tr>
+
+<td><%= m.id %></td>
+
+<td><%= m.texto %></td>
+
+<td>
+
+<% if(m.archivo){ %>
+
+  <% if(m.archivo.match(/\.(jpg|jpeg|png|gif)$/i)){ %>
+
+    <a href="/uploads/<%= m.archivo %>" target="_blank">
+      <img 
+        src="/uploads/<%= m.archivo %>" 
+        style="width:60px;border-radius:6px;cursor:pointer;">
+    </a>
+
+  <% } else if(m.archivo.match(/\.(mp4|mov|webm)$/i)){ %>
+
+    <video width="80" controls>
+      <source src="/uploads/<%= m.archivo %>">
+    </video>
+
+  <% } %>
+
+<% } else { %>
+
+-
+
+<% } %>
+
+
+</td>
+
+
+
+<td><%= m.fecha %></td>
+<td><%= m.hora %></td>
+<td><%= m.estado %></td>
+
+<td style="font-size:20px">
+
+<a href="/mensajes/duplicar/<%= m.id %>" title="Duplicar mensaje">📄</a>
+
+<a href="/mensajes/eliminar/<%= m.id %>" 
+title="Eliminar mensaje"
+onclick="return confirm('Eliminar mensaje?')">🗑</a>
+
+<a href="/mensajes/editar/<%= m.id %>" title="Editar mensaje">✏️</a>
+
+</td>
+
+</tr>
+
+<% }) %>
+
+</table>
+
+</div>
+
+
+<div id="modalImg" class="modal-img">
+
+<img id="imgZoom">
+
+</div>
+
+<script>
+
+function zoomImagen(src){
+
+document.getElementById("modalImg").style.display="flex";
+document.getElementById("imgZoom").src = src;
+
+}
+
+document.getElementById("modalImg").onclick=function(){
+
+this.style.display="none";
+
+}
+
+</script>
+
+<style>
+
+.modal-img{
+
+display:none;
+position:fixed;
+top:0;
+left:0;
+width:100%;
+height:100%;
+background:rgba(0,0,0,0.8);
+justify-content:center;
+align-items:center;
+z-index:999;
+
+}
+
+.modal-img img{
+
+max-width:80%;
+border-radius:10px;
+
+}
+
+</style>

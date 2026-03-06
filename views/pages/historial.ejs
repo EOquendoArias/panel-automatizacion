@@ -1,0 +1,29 @@
+<div class="card">
+
+<h2>Historial de envíos</h2>
+
+<table>
+
+<tr>
+<th>ID</th>
+<th>Mensaje</th>
+<th>Fecha</th>
+<th>Hora</th>
+</tr>
+
+<% mensajes.forEach(function(m){ %>
+
+<tr>
+
+<td><%= m.id %></td>
+<td><%= m.texto %></td>
+<td><%= m.fecha %></td>
+<td><%= m.hora %></td>
+
+</tr>
+
+<% }) %>
+
+</table>
+
+</div>

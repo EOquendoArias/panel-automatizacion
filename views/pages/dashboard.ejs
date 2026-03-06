@@ -1,0 +1,75 @@
+<div class="card">
+
+<h1>Bienvenido <%= user.nombre || user.email %></h1>
+
+<p>Sistema de automatización de mensajes</p>
+
+</div>
+
+
+<div style="display:flex;gap:20px;margin-bottom:30px;">
+
+<div class="card">
+<h3>Mensajes enviados</h3>
+<h1><%= enviados %></h1>
+</div>
+
+<div class="card">
+<h3>Mensajes pendientes</h3>
+<h1><%= pendientes %></h1>
+</div>
+
+<div class="card">
+<h3>Programados hoy</h3>
+<h1><%= hoy %></h1>
+</div>
+
+</div>
+
+
+<div class="card">
+
+<h3>Actividad de mensajes</h3>
+
+<canvas id="mensajesChart" height="80"></canvas>
+
+</div>
+
+
+<script>
+
+const ctx = document.getElementById('mensajesChart');
+
+new Chart(ctx, {
+
+type: 'bar',
+
+data: {
+
+labels: ['Enviados', 'Pendientes', 'Hoy'],
+
+datasets: [{
+
+data: [<%= enviados %>, <%= pendientes %>, <%= hoy %>],
+
+backgroundColor: [
+'#22c55e',
+'#facc15',
+'#3b82f6'
+]
+
+}]
+
+},
+
+options: {
+
+plugins:{
+legend:{display:false}
+}
+
+}
+
+});
+
+</script>
