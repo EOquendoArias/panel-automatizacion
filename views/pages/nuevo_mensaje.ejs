@@ -7,15 +7,40 @@
 <label>Mensaje</label>
 <textarea name="texto" rows="5"></textarea>
 
+<div class="form-group">
+
 <label>Plataforma</label>
 
-<input type="checkbox" name="plataforma" value="whatsapp"> WhatsApp
-<input type="checkbox" name="plataforma" value="facebook"> Facebook
+<label class="checkbox">
+<input type="checkbox" name="plataforma" value="whatsapp">
+WhatsApp
+</label>
+
+<label class="checkbox">
+<input type="checkbox" name="plataforma" value="facebook">
+Facebook
+</label>
+
+</div>
 
 <br><br>
 
 <label>Imagen o Video</label>
-<input type="file" name="archivo">
+
+<input type="file" name="archivo" id="archivo" accept="image/*,video/*">
+
+<br><br>
+
+<div id="preview-container" style="display:none;">
+
+<img id="preview-img"
+style="max-width:300px; border-radius:6px; display:none;">
+
+<video id="preview-video"
+controls
+style="max-width:300px; border-radius:6px; display:none;"></video>
+
+</div>
 
 <p>
 
@@ -39,8 +64,64 @@ Video Facebook: 50MB
 
 <br><br>
 
-<button>Guardar mensaje</button>
+<button type="submit">Guardar mensaje</button>
 
 </form>
 
 </div>
+
+<script>
+
+const archivoInput = document.getElementById("archivo")
+const previewImg = document.getElementById("preview-img")
+const previewVideo = document.getElementById("preview-video")
+const previewContainer = document.getElementById("preview-container")
+
+archivoInput.addEventListener("change", function(){
+
+const file = this.files[0]
+
+if(!file){
+previewContainer.style.display = "none"
+return
+}
+
+/* VALIDAR TAMAÑO 50MB */
+
+if(file.size > 50 * 1024 * 1024){
+
+alert("El archivo supera el límite permitido (50MB)")
+
+this.value = ""
+
+previewContainer.style.display = "none"
+
+return
+}
+
+const url = URL.createObjectURL(file)
+
+previewContainer.style.display = "block"
+
+previewImg.style.display = "none"
+previewVideo.style.display = "none"
+
+/* SI ES IMAGEN */
+
+if(file.type.startsWith("image/")){
+
+previewImg.src = url
+previewImg.style.display = "block"
+
+/* SI ES VIDEO */
+
+}else if(file.type.startsWith("video/")){
+
+previewVideo.src = url
+previewVideo.style.display = "block"
+
+}
+
+})
+
+</script>

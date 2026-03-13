@@ -5,6 +5,7 @@ require("./auth/google");
 
 const path = require("path");
 const expressLayouts = require("express-ejs-layouts");
+const axios = require("axios");
 
 /* RUTAS */
 
@@ -74,6 +75,123 @@ next();
 app.use("/",authRoutes);
 app.use("/",mensajesRoutes);
 app.use("/",usuariosRoutes);
+
+/* eventos */
+
+app.get("/bot/logs", async (req,res)=>{
+
+try{
+
+const response = await axios.get("http://localhost:3001/logs")
+
+res.json(response.data)
+
+}catch(err){
+
+res.json({logs:[]})
+
+}
+
+})
+
+/* API BOT WHATSAPP */
+
+app.get("/bot/status", async (req,res)=>{
+
+try{
+
+const response = await axios.get("http://localhost:3001/status");
+
+res.json(response.data);
+
+}catch(error){
+
+res.json({
+status:"offline"
+});
+
+}
+
+});
+
+app.get("/bot/memory", async (req,res)=>{
+
+try{
+
+const response = await axios.get("http://localhost:3001/memory")
+
+res.json(response.data)
+
+}catch(err){
+
+res.json({memory:[]})
+
+}
+
+})
+
+
+
+app.get("/bot", (req,res)=>{
+
+res.render("bot");
+
+});
+
+app.get("/bot/qr", async (req,res)=>{
+
+try{
+
+const response = await axios.get("http://localhost:3001/qr");
+
+res.json(response.data);
+
+}catch(error){
+
+res.json({
+status:"error"
+});
+
+}
+
+});
+
+/* REINICIAR BOT */
+
+app.post("/bot/restart", async (req,res)=>{
+
+try{
+
+await axios.post("http://localhost:3001/restart")
+
+res.json({success:true})
+
+}catch(err){
+
+res.json({success:false})
+
+}
+
+})
+
+/* RESET SESION */
+
+app.post("/bot/reset", async (req,res)=>{
+
+try{
+
+await axios.post("http://localhost:3001/reset-session")
+
+res.json({success:true})
+
+}catch(err){
+
+res.json({success:false})
+
+}
+
+})
+
 
 /* SERVIDOR */
 

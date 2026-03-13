@@ -5,7 +5,7 @@
 
 <meta charset="UTF-8">
 <title>Redimidos Panel</title>
-
+<link rel="icon" type="image/png" href="/favicon.png">
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <style>
@@ -84,6 +84,70 @@ color:white;
 padding:6px;
 border-radius:6px;
 }
+
+.form-group{
+margin-bottom:20px;
+}
+
+textarea,
+input[type="text"],
+input[type="date"],
+input[type="time"],
+input[type="file"]{
+
+width:100%;
+padding:10px;
+border-radius:6px;
+border:1px solid #ccc;
+
+}
+
+.grid{
+display:grid;
+grid-template-columns:1fr 1fr 1fr;
+gap:20px;
+}
+
+#preview-container{
+margin-top:15px;
+}
+
+
+#preview-img,
+#preview-video{
+max-width:420px;
+border-radius:10px;
+box-shadow:0 4px 12px rgba(0,0,0,0.15);
+margin-top:10px;
+}
+
+.btn-primary{
+
+background:#2563eb;
+color:white;
+padding:12px 18px;
+border:none;
+border-radius:6px;
+cursor:pointer;
+
+}
+
+.btn-primary:hover{
+background:#1e4fd1;
+}
+
+input[type="file"]{
+background:#f8f9fb;
+padding:8px;
+border-radius:6px;
+border:1px solid #ddd;
+}
+
+.checkbox{
+margin-right:18px;
+font-weight:500;
+}
+
 
 </style>
 

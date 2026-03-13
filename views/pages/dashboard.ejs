@@ -35,6 +35,13 @@
 
 </div>
 
+<div class="card" style="margin-top:20px;">
+
+<h3>Memoria del Bot</h3>
+
+<canvas id="memoryChart" height="100"></canvas>
+
+</div>
 
 <script>
 
@@ -71,5 +78,43 @@ legend:{display:false}
 }
 
 });
+
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<script>
+
+async function cargarMemoria(){
+
+const res = await fetch("/bot/memory")
+const data = await res.json()
+
+const labels = data.memory.map(m => new Date(m.time).toLocaleTimeString())
+const values = data.memory.map(m => m.memory)
+
+const ctx = document.getElementById('memoryChart')
+
+new Chart(ctx,{
+
+type:'line',
+
+data:{
+labels:labels,
+datasets:[{
+label:'RAM MB',
+data:values,
+borderColor:'rgb(75, 192, 192)',
+tension:0.2
+}]
+}
+
+})
+
+}
+
+setInterval(cargarMemoria,30000)
+
+cargarMemoria()
 
 </script>
