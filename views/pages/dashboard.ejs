@@ -1,0 +1,120 @@
+<div class="card">
+
+<h1>Bienvenido <%= user.nombre || user.email %></h1>
+
+<p>Sistema de automatización de mensajes</p>
+
+</div>
+
+
+<div style="display:flex;gap:20px;margin-bottom:30px;">
+
+<div class="card">
+<h3>Mensajes enviados</h3>
+<h1><%= enviados %></h1>
+</div>
+
+<div class="card">
+<h3>Mensajes pendientes</h3>
+<h1><%= pendientes %></h1>
+</div>
+
+<div class="card">
+<h3>Programados hoy</h3>
+<h1><%= hoy %></h1>
+</div>
+
+</div>
+
+
+<div class="card">
+
+<h3>Actividad de mensajes</h3>
+
+<canvas id="mensajesChart" height="80"></canvas>
+
+</div>
+
+<div class="card" style="margin-top:20px;">
+
+<h3>Memoria del Bot</h3>
+
+<canvas id="memoryChart" height="100"></canvas>
+
+</div>
+
+<script>
+
+const ctx = document.getElementById('mensajesChart');
+
+new Chart(ctx, {
+
+type: 'bar',
+
+data: {
+
+labels: ['Enviados', 'Pendientes', 'Hoy'],
+
+datasets: [{
+
+data: [<%= enviados %>, <%= pendientes %>, <%= hoy %>],
+
+backgroundColor: [
+'#22c55e',
+'#facc15',
+'#3b82f6'
+]
+
+}]
+
+},
+
+options: {
+
+plugins:{
+legend:{display:false}
+}
+
+}
+
+});
+
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<script>
+
+async function cargarMemoria(){
+
+const res = await fetch("/bot/memory")
+const data = await res.json()
+
+const labels = data.memory.map(m => new Date(m.time).toLocaleTimeString())
+const values = data.memory.map(m => m.memory)
+
+const ctx = document.getElementById('memoryChart')
+
+new Chart(ctx,{
+
+type:'line',
+
+data:{
+labels:labels,
+datasets:[{
+label:'RAM MB',
+data:values,
+borderColor:'rgb(75, 192, 192)',
+tension:0.2
+}]
+}
+
+})
+
+}
+
+setInterval(cargarMemoria,30000)
+
+cargarMemoria()
+
+</script>

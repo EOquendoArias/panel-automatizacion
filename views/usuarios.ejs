@@ -1,0 +1,29 @@
+<div class="card">
+
+<h2>Usuarios</h2>
+
+<table>
+
+<tr>
+<th>ID</th>
+<th>Email</th>
+<th>Nombre</th>
+<th>Rol</th>
+</tr>
+
+<% usuarios.forEach(function(u){ %>
+
+<tr>
+
+<td><%= u.id %></td>
+<td><%= u.email %></td>
+<td><%= u.nombre %></td>
+<td><%= u.rol %></td>
+
+</tr>
+
+<% }) %>
+
+</table>
+
+</div>

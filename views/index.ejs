@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Panel Redimidos</title>
+
+<style>
+
+body{
+font-family: Arial;
+background:#f4f6f8;
+margin:0;
+}
+
+.header{
+background:#1e293b;
+color:white;
+padding:20px;
+}
+
+.container{
+padding:40px;
+}
+
+.cards{
+display:flex;
+gap:20px;
+margin-top:30px;
+}
+
+.card{
+background:white;
+padding:30px;
+border-radius:8px;
+box-shadow:0 2px 8px rgba(0,0,0,0.1);
+width:200px;
+text-align:center;
+}
+
+.card a{
+text-decoration:none;
+font-weight:bold;
+color:#2563eb;
+}
+
+.footer{
+margin-top:40px;
+}
+
+.logout{
+color:red;
+}
+
+</style>
+
+</head>
+
+<body>
+
+<div class="header">
+<h1>Panel Redimidos de las Naciones</h1>
+</div>
+
+<div class="container">
+
+<h2>Bienvenido <%= user.nombre %></h2>
+
+<p>Sesión iniciada como: <strong><%= user.email %></strong></p>
+
+<div class="cards">
+
+<div class="card">
+<a href="/whatsapp">Enviar mensaje WhatsApp</a>
+</div>
+
+<div class="card">
+<a href="/facebook">Publicar en Facebook</a>
+</div>
+
+<div class="card">
+<a href="/programar">Programar mensaje</a>
+</div>
+
+</div>
+
+<div class="footer">
+
+<br><br>
+
+<a class="logout" href="/logout">Cerrar sesión</a>
+
+</div>
+
+</div>
+
+</body>
+</html>

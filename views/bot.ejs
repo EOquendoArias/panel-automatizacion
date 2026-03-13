@@ -1,0 +1,138 @@
+<h2>Control del Bot WhatsApp</h2>
+
+<h3 id="estado">Cargando estado...</h3>
+
+<div style="margin-top:20px">
+
+<h3>QR WhatsApp</h3>
+
+<img id="qr" width="300">
+
+</div>
+
+<hr>
+
+<h3>Controles</h3>
+
+<button onclick="reiniciar()">🔄 Reiniciar Bot</button>
+
+<button onclick="resetSesion()">🧹 Limpiar Sesión</button>
+
+<hr>
+
+<h3>Diagnóstico</h3>
+
+<div id="diagnostico"></div>
+
+<hr>
+
+<h3>Logs del Bot</h3>
+
+<pre id="logs" style="
+background:#111;
+color:#0f0;
+padding:10px;
+height:200px;
+overflow:auto;
+"></pre>
+
+<script>
+let alertaMostrada = false
+
+async function estadoBot(){
+
+const res = await fetch("/bot/status")
+const data = await res.json()
+
+const estado = document.getElementById("estado")
+
+if(data.status === "ready"){
+
+estado.innerHTML = "🟢 WhatsApp conectado"
+alertaMostrada = false
+
+}
+
+else if(data.status === "waiting_qr"){
+
+estado.innerHTML = "🟡 Esperando QR"
+
+}
+
+else if(data.status === "authenticated"){
+
+estado.innerHTML = "🟡 Autenticando..."
+
+}
+
+else{
+
+estado.innerHTML = "🔴 BOT DESCONECTADO"
+
+if(!alertaMostrada){
+
+alert("⚠️ El bot se desconectó")
+
+alertaMostrada = true
+
+}
+
+}
+
+
+
+document.getElementById("diagnostico").innerHTML =
+"Uptime: "+Math.floor(data.uptime)+" segundos"
+
+}
+
+async function cargarQR(){
+
+const res = await fetch("/bot/qr")
+const data = await res.json()
+
+if(data.qr){
+
+document.getElementById("qr").src = data.qr
+
+}
+
+}
+
+async function reiniciar(){
+
+await fetch("/bot/restart",{method:"POST"})
+
+alert("Bot reiniciándose")
+
+}
+
+async function resetSesion(){
+
+await fetch("/bot/reset",{method:"POST"})
+
+alert("Sesión eliminada. Se generará nuevo QR")
+
+}
+
+setInterval(estadoBot,3000)
+setInterval(cargarQR,4000)
+
+estadoBot()
+cargarQR()
+
+async function cargarLogs(){
+
+const res = await fetch("/bot/logs")
+const data = await res.json()
+
+document.getElementById("logs").innerText =
+data.logs.join("\n")
+
+}
+
+setInterval(cargarLogs,4000)
+
+cargarLogs()
+
+</script>
