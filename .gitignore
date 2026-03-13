@@ -2,3 +2,5 @@ node_modules
 .env
 uploads
 bot.db
+chrome-session
+.webjs_cache
