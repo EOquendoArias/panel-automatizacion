@@ -1,0 +1,5 @@
+2026/03/12-21:55:19.195 49c8b Recovering log #32
+2026/03/12-21:55:19.203 49c8b Level-0 table #34: started
+2026/03/12-21:55:19.212 49c8b Level-0 table #34: 124 bytes OK
+2026/03/12-21:55:19.232 49c8b Delete type=0 #32
+2026/03/12-21:55:19.232 49c8b Delete type=3 #30
