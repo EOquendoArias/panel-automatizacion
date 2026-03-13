@@ -42,34 +42,26 @@ const client = new Client({
  puppeteer: {
   headless: true,
   userDataDir: "/root/bot-whatsapp/chrome-session",
-  protocolTimeout: 600000,
+  protocolTimeout: 1200000,
 
   args: [
 
-   "--no-sandbox",
-   "--disable-setuid-sandbox",
-   "--disable-dev-shm-usage",
+"--no-sandbox",
+ "--disable-setuid-sandbox",
+ "--disable-dev-shm-usage",
+ "--disable-gpu",
+ "--disable-extensions",
+ "--disable-background-networking",
+ "--disable-background-timer-throttling",
+ "--disable-renderer-backgrounding",
+ "--disable-backgrounding-occluded-windows",
+ "--disable-features=site-per-process",
+ "--disable-blink-features=AutomationControlled"
 
-   "--disable-gpu",
-   "--no-first-run",
-   "--no-zygote",
-   "--single-process",
-
-   "--disable-extensions",
-   "--disable-background-networking",
-   "--disable-background-timer-throttling",
-   "--disable-renderer-backgrounding",
-   "--disable-backgrounding-occluded-windows",
-
-   "--disable-features=site-per-process",
-   "--disable-blink-features=AutomationControlled"
 
   ]
  }
 });
-
-
-
 
 /* VARIABLES DEL SISTEMA */
 
@@ -103,6 +95,8 @@ botStatus = "authenticated"
 client.on("ready", async ()=>{
 
  addLog("WHATSAPP LISTO");
+
+await recuperarCola();
 
  botStatus="starting";
 
@@ -258,9 +252,11 @@ async function manejarReinicio(){
 
 async function procesarCola(){
 
- if(procesandoCola || colaMensajes.length === 0) return;
+ if(procesandoCola) return;
 
  if(botStatus !== "ready") return;
+
+ if(colaMensajes.length === 0) return;
 
  if(!client?.pupPage || client.pupPage.isClosed()){
 
@@ -286,53 +282,85 @@ async function procesarCola(){
 
  const msg = colaMensajes.shift();
 
+ if(!msg){
+  addLog("Mensaje inválido en cola, ignorando...");
+  procesandoCola=false;
+  return;
+ }
+
  try{
 
-  addLog("Entregando mensaje a: "+msg.grupos);
+  addLog("Entregando mensaje ID "+msg.id+" a: "+msg.grupos);
 
-  await new Promise(r=>setTimeout(r,8000));
+  await new Promise(r=>setTimeout(r,12000));
+/*-------*/
 
-  let filePath = msg.archivo
-  ? "/root/panel/uploads/" + msg.archivo
-  : null;
+let filePath = msg.archivo
+ ? "/root/panel/uploads/" + msg.archivo
+ : null;
 
-  if(filePath && fs.existsSync(filePath)){
+// cargar chat primero
+const chat = await client.getChatById(msg.grupos);
 
-   const media = MessageMedia.fromFilePath(filePath);
+if(!chat){
+ addLog("No se pudo cargar el chat: "+msg.grupos);
+ procesandoCola=false;
+ return;
+}
 
-   await client.sendMessage(msg.grupos,media,{
-    caption: msg.texto || ""
-   });
+// despertar chat
+try{
+ await chat.fetchMessages({limit:1});
+}catch(e){
+ addLog("Chat aún no listo, esperando...");
+ await new Promise(r=>setTimeout(r,5000));
+}
 
-   addLog("Imagen enviada correctamente");
+await new Promise(r=>setTimeout(r,4000));
 
-  }else{
+if(filePath && fs.existsSync(filePath)){
 
-   await client.sendMessage(msg.grupos,msg.texto || "");
+ const media = MessageMedia.fromFilePath(filePath);
 
-   addLog("Texto enviado correctamente");
+ await enviarConTimeout(
+  chat.sendMessage(media,{
+   caption: msg.texto || ""
+  })
+ );
 
-  }
+}else{
 
-  db.run(`UPDATE mensajes SET estado='enviado' WHERE id=?`,[msg.id]);
+ await enviarConTimeout(
+  chat.sendMessage(msg.texto || "")
+ );
 
+}
+
+db.run(`UPDATE mensajes SET estado='enviado' WHERE id=?`,[msg.id]);
+
+addLog("Mensaje enviado correctamente");
+
+
+/*-----*/
  }catch(e){
 
   addLog("Error en cola: "+e.message);
 
   if(
-
    e.message.includes("Target closed") ||
    e.message.includes("Session closed") ||
    e.message.includes("Execution context") ||
    e.message.includes("detached") ||
    e.message.includes("getChat")
-
   ){
 
-   colaMensajes.unshift(msg);
+   if(msg){
+    colaMensajes.unshift(msg);
+   }
 
-   await manejarReinicio();
+   addLog("Reintentando envío en 10 segundos");
+
+  await new Promise(r=>setTimeout(r,10000));
 
   }else{
 
@@ -347,6 +375,10 @@ async function procesarCola(){
  }
 
 }
+
+
+
+
 
 
 /* BUSCADOR */
@@ -406,7 +438,7 @@ async function watchdog(){
 
  const tiempo = ahora - ultimoReinicio;
 
- const limite = 30 * 60 * 1000;
+ const limite = 6 * 60 * 60 * 1000;
 
  if(tiempo > limite){
 
@@ -423,14 +455,59 @@ async function watchdog(){
 
 setInterval(worker,25000);
 
-setInterval(procesarCola,3000);
+setInterval(procesarCola,7000);
 
 setInterval(watchdog,60000);
 
 
+/* RECUPERAR COLA */
 
+async function recuperarCola(){
 
+ addLog("Recuperando mensajes pendientes...");
 
+ db.all(
+  `SELECT * FROM mensajes 
+   WHERE estado='pendiente' 
+   OR estado='en_cola'`,
+  [],
+  (err,rows)=>{
+
+   if(err){
+    addLog("Error recuperando cola: "+err.message);
+    return;
+   }
+
+   if(!rows || rows.length===0){
+    addLog("No hay mensajes pendientes");
+    return;
+   }
+
+   rows.forEach(msg=>{
+
+    colaMensajes.push(msg);
+
+    addLog("Mensaje recuperado desde DB: "+msg.id);
+
+   });
+
+  }
+ );
+
+}
+
+/* enviarConTimeout */
+
+async function enviarConTimeout(promise, tiempo=20000){
+
+ return Promise.race([
+  promise,
+  new Promise((_,reject)=>
+   setTimeout(()=>reject(new Error("Timeout enviando mensaje")),tiempo)
+  )
+ ]);
+
+}
 
 /* STATUS */
 
