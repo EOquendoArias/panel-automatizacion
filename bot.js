@@ -1,34 +1,48 @@
-
 const { Client, MessageMedia } = require("whatsapp-web.js")
 const express = require("express")
 const qrcode = require("qrcode")
 const fs = require("fs")
-
 const sqlite3 = require("sqlite3").verbose()
+
+/* DATABASE */
+
 const db = new sqlite3.Database("/root/panel/bot.db")
+db.exec("PRAGMA journal_mode=WAL;")
+
+/* EXPRESS */
 
 const app = express()
+
+/* ESTADO BOT */
 
 let botStatus = "starting"
 let qrCodeBase64 = null
 let lastReady = null
+
 let logs = []
 
+/* COLA */
 
-let lastState = null
-let memoryHistory = []
+let colaMensajes = []
+let procesandoCola = false
+
+/* CACHE CHATS */
+
+let chatCache = {}
+
+/* LOGS */
 
 function addLog(msg){
 
-const line = new Date().toISOString()+" "+msg
+ const line = new Date().toISOString()+" "+msg
 
-console.log(line)
+ console.log(line)
 
-logs.push(line)
+ logs.push(line)
 
-if(logs.length > 200){
-logs.shift()
-}
+ if(logs.length > 200){
+  logs.shift()
+ }
 
 }
 
@@ -36,579 +50,634 @@ logs.shift()
 
 const client = new Client({
 
- takeoverOnConflict: true,
- takeoverTimeoutMs: 0,
+ takeoverOnConflict:true,
+ takeoverTimeoutMs:0,
 
- puppeteer: {
-  headless: true,
-  userDataDir: "/root/bot-whatsapp/chrome-session",
-  protocolTimeout: 1200000,
+ puppeteer:{
 
-  args: [
+  headless:true,
 
-"--no-sandbox",
- "--disable-setuid-sandbox",
- "--disable-dev-shm-usage",
- "--disable-gpu",
- "--disable-extensions",
- "--disable-background-networking",
+  userDataDir:"/root/bot-whatsapp/chrome-session",
+
+  protocolTimeout:300000,
+
+  args:[
+
+   "--no-sandbox",
+   "--disable-setuid-sandbox",
+   "--disable-dev-shm-usage",
+   "--disable-gpu",
+   "--no-zygote",
+   "--disable-extensions",
+   "--disable-background-networking",
+   "--disable-sync",
+   "--disable-translate",
+   "--metrics-recording-only",
+   "--mute-audio",
+   "--no-first-run",
+   "--disable-features=site-per-process",
+
+"--disable-renderer-backgrounding",
  "--disable-background-timer-throttling",
- "--disable-renderer-backgrounding",
- "--disable-backgrounding-occluded-windows",
- "--disable-features=site-per-process",
- "--disable-blink-features=AutomationControlled"
-
-
+ "--disable-breakpad"
   ]
+
  }
-});
 
-/* VARIABLES DEL SISTEMA */
-
-let colaMensajes = [];
-let procesandoCola = false;
-let reiniciandoCliente = false;
-let ultimoReinicio = Date.now();
+})
 
 /* EVENTOS */
 
-client.on("qr", async (qr)=>{
+client.on("qr", async qr=>{
 
-addLog("QR recibido")
+ addLog("QR recibido")
 
-botStatus = "waiting_qr"
+ botStatus="waiting_qr"
 
-qrCodeBase64 = await qrcode.toDataURL(qr)
-
-})
-
-client.on("authenticated", ()=>{
-
-addLog("Autenticado")
-
-botStatus = "authenticated"
+ qrCodeBase64 = await qrcode.toDataURL(qr)
 
 })
 
-/*------*/
+client.on("authenticated",()=>{
+
+ addLog("Autenticado")
+
+ botStatus="authenticated"
+
+})
 
 client.on("ready", async ()=>{
 
- addLog("WHATSAPP LISTO");
+ addLog("WHATSAPP LISTO")
 
-await recuperarCola();
+ qrCodeBase64 = null
+ lastReady = new Date()
 
- botStatus="starting";
+ addLog("Esperando carga completa de chats...")
 
- qrCodeBase64=null;
+ try{
 
- lastReady = new Date();
+  // esperar hasta que WhatsApp tenga chats cargados
+  await client.pupPage.waitForFunction(
+   'window.Store && window.Store.Chat && window.Store.Chat.models.length > 0',
+   {timeout: 0}
+  )
 
- addLog("Esperando estabilización de WhatsApp...");
+  const chats = await client.getChats()
 
- setTimeout(()=>{
+  addLog("Chats cargados correctamente: " + chats.length)
 
-   botStatus="ready";
-   addLog("Cliente completamente listo para enviar");
+  const grupos = chats.filter(c => c.isGroup)
 
- },10000); // espera 10 segundos
+  addLog("Grupos detectados: " + grupos.length)
 
-});
+ }catch(e){
 
+  addLog("Error esperando carga de chats: " + e.message)
 
-/*-----*/
+ }
 
-client.on("loading_screen",(percent,message)=>{
+ await recuperarCola()
 
-addLog("Cargando "+percent+" "+message)
+ botStatus="ready"
 
-})
-
-client.on("auth_failure",(msg)=>{
-
-addLog("Fallo autenticación "+msg)
-
-botStatus = "auth_failure"
+ addLog("Cliente listo para enviar")
 
 })
 
 client.on("disconnected",(reason)=>{
 
-addLog("Desconectado "+reason)
+ addLog("Desconectado "+reason)
 
-botStatus = "disconnected"
-
-setTimeout(()=>{
-
-addLog("Reiniciando cliente")
-client.initialize()
-
-},5000)
+ process.exit(1)
 
 })
 
 client.initialize()
-
-
-
-/* WATCHDOG */
-
-setInterval(()=>{
-
-const mem = process.memoryUsage().rss / 1024 / 1024
-
-memoryHistory.push({
-time: Date.now(),
-memory: mem
-})
-
-if(memoryHistory.length > 60){
-memoryHistory.shift()
-}
-
-/* log solo si cambia estado */
-
-if(botStatus !== lastState){
-
-addLog("Estado cambiado a "+botStatus)
-
-lastState = botStatus
-
-}
-
-/* protección memoria */
-
-if(mem > 500){
-
-addLog("Memoria alta reiniciando")
-
-process.exit(1)
-
-}
-
-},30000)
-
-/* WORKER MENSAJES PROGRAMADOS */
-
-/* --- SISTEMA DE COLA PROFESIONAL --- */
-
-
-
-/* REINICIO SEGURO */
-
-async function whatsappReadyReal() {
-
- try {
-
-  if (!client?.pupPage) return false;
-
-  const estado = await client.getState();
-
-  if (estado !== "CONNECTED") return false;
-
-  if (!client.info) return false;
-
-  return true;
-
- } catch (e) {
-
-  return false;
-
- }
-
-}
-
-
-/*----*/
-
-async function manejarReinicio(){
-
- if(reiniciandoCliente) return;
-
- reiniciandoCliente = true;
-
- addLog("Detectado fallo crítico. Reiniciando cliente...");
-
- try{
-  await client.destroy();
- }catch(e){}
-
- try{
-  await client.initialize();
- }catch(e){}
-
- setTimeout(()=>{
-
-  reiniciandoCliente=false;
-  ultimoReinicio = Date.now();
-
-  addLog("Cliente listo nuevamente");
-
- },20000);
-
-}
-
-/* PROCESADOR DE COLA */
-
-async function procesarCola(){
-
- if(procesandoCola) return;
-
- if(botStatus !== "ready") return;
-
- if(colaMensajes.length === 0) return;
-
- if(!client?.pupPage || client.pupPage.isClosed()){
-
-  addLog("Navegador cerrado detectado");
-
-  await manejarReinicio();
-
-  return;
-
- }
-
- const domReady = await whatsappReadyReal();
-
- if(!domReady){
-
-  addLog("WhatsApp Web aún cargando interfaz...");
-
-  return;
-
- }
-
- procesandoCola = true;
-
- const msg = colaMensajes.shift();
-
- if(!msg){
-  addLog("Mensaje inválido en cola, ignorando...");
-  procesandoCola=false;
-  return;
- }
-
- try{
-
-  addLog("Entregando mensaje ID "+msg.id+" a: "+msg.grupos);
-
-  await new Promise(r=>setTimeout(r,12000));
-/*-------*/
-
-let filePath = msg.archivo
- ? "/root/panel/uploads/" + msg.archivo
- : null;
-
-// cargar chat primero
-const chat = await client.getChatById(msg.grupos);
-
-if(!chat){
- addLog("No se pudo cargar el chat: "+msg.grupos);
- procesandoCola=false;
- return;
-}
-
-// despertar chat
-try{
- await chat.fetchMessages({limit:1});
-}catch(e){
- addLog("Chat aún no listo, esperando...");
- await new Promise(r=>setTimeout(r,5000));
-}
-
-await new Promise(r=>setTimeout(r,4000));
-
-if(filePath && fs.existsSync(filePath)){
-
- const media = MessageMedia.fromFilePath(filePath);
-
- await enviarConTimeout(
-  chat.sendMessage(media,{
-   caption: msg.texto || ""
-  })
- );
-
-}else{
-
- await enviarConTimeout(
-  chat.sendMessage(msg.texto || "")
- );
-
-}
-
-db.run(`UPDATE mensajes SET estado='enviado' WHERE id=?`,[msg.id]);
-
-addLog("Mensaje enviado correctamente");
-
-
-/*-----*/
- }catch(e){
-
-  addLog("Error en cola: "+e.message);
-
-  if(
-   e.message.includes("Target closed") ||
-   e.message.includes("Session closed") ||
-   e.message.includes("Execution context") ||
-   e.message.includes("detached") ||
-   e.message.includes("getChat")
-  ){
-
-   if(msg){
-    colaMensajes.unshift(msg);
-   }
-
-   addLog("Reintentando envío en 10 segundos");
-
-  await new Promise(r=>setTimeout(r,10000));
-
-  }else{
-
-   db.run(`UPDATE mensajes SET estado='error' WHERE id=?`,[msg.id]);
-
-  }
-
- }finally{
-
-  procesandoCola=false;
-
- }
-
-}
-
-
-
-
-
-
-/* BUSCADOR */
-
-
-async function worker(){
-
- if(reiniciandoCliente || botStatus !== "ready") return;
-
- const fecha = new Date().toISOString().slice(0,10);
- const hora = new Date().toTimeString().slice(0,5);
-
- db.get(
-  `SELECT * FROM mensajes
-   WHERE estado='pendiente'
-   AND fecha <= ?
-   AND hora <= ?
-   LIMIT 1`,
-  [fecha,hora],
-  (err,msg)=>{
-
-   if(err){
-    addLog("Error consultando DB: "+err.message);
-    return;
-   }
-
-   if(!msg) return;
-
-   addLog("Mensaje encontrado: "+msg.id);
-
-   db.run(
-    `UPDATE mensajes SET estado='en_cola' WHERE id=?`,
-    [msg.id],
-    (err)=>{
-
-     if(err){
-      addLog("Error actualizando estado: "+err.message);
-      return;
-     }
-
-     colaMensajes.push(msg);
-
-     addLog("Mensaje agregado a cola");
-    }
-   );
-
-  }
- );
-
-}
-
-/*-------*/
-
-async function watchdog(){
-
- const ahora = Date.now();
-
- const tiempo = ahora - ultimoReinicio;
-
- const limite = 6 * 60 * 60 * 1000;
-
- if(tiempo > limite){
-
-  addLog("Watchdog: reinicio preventivo del navegador");
-
-  await manejarReinicio();
-
- }
-
-}
-
-
-/* ACTIVACIÓN */
-
-setInterval(worker,25000);
-
-setInterval(procesarCola,7000);
-
-setInterval(watchdog,60000);
-
 
 /* RECUPERAR COLA */
 
 async function recuperarCola(){
 
- addLog("Recuperando mensajes pendientes...");
+ addLog("Recuperando mensajes pendientes")
 
  db.all(
-  `SELECT * FROM mensajes 
-   WHERE estado='pendiente' 
+
+  `SELECT * FROM mensajes
+   WHERE estado='pendiente'
    OR estado='en_cola'`,
+
   [],
+
   (err,rows)=>{
 
    if(err){
-    addLog("Error recuperando cola: "+err.message);
-    return;
+
+    addLog("Error DB "+err.message)
+
+    return
+
    }
 
    if(!rows || rows.length===0){
-    addLog("No hay mensajes pendientes");
-    return;
+
+    addLog("No hay mensajes pendientes")
+
+    return
+
    }
 
    rows.forEach(msg=>{
 
-    colaMensajes.push(msg);
+    msg.retries = 0
 
-    addLog("Mensaje recuperado desde DB: "+msg.id);
+    if(!colaMensajes.find(m=>m.id===msg.id)){
 
-   });
+     colaMensajes.push(msg)
+
+     addLog("Mensaje recuperado "+msg.id)
+
+    }
+
+   })
 
   }
- );
+
+ )
 
 }
 
-/* enviarConTimeout */
+/* WORKER */
 
-async function enviarConTimeout(promise, tiempo=20000){
+async function worker(){
+
+ if(botStatus !== "ready") return
+
+ const fecha = new Date().toISOString().slice(0,10)
+ const hora = new Date().toTimeString().slice(0,5)
+
+ db.get(
+
+  `SELECT * FROM mensajes
+   WHERE estado='pendiente'
+   AND (fecha < ? OR (fecha = ? AND hora <= ?))
+   ORDER BY fecha ASC, hora ASC
+   LIMIT 1`,
+
+  [fecha,fecha,hora],
+
+  (err,msg)=>{
+
+   if(err){
+
+    addLog("Error DB "+err.message)
+
+    return
+
+   }
+
+   if(!msg) return
+
+   db.run(
+
+    `UPDATE mensajes SET estado='en_cola' WHERE id=?`,
+
+    [msg.id],
+
+    (err)=>{
+
+     if(err){
+
+      addLog("Error update "+err.message)
+
+      return
+
+     }
+
+     msg.retries = 0
+
+     if(!colaMensajes.find(m=>m.id===msg.id)){
+
+      colaMensajes.push(msg)
+
+      addLog("Mensaje agregado cola "+msg.id)
+
+     }
+
+    }
+
+   )
+
+  }
+
+ )
+
+}
+
+/* OBTENER CHAT CON CACHE */
+
+//async function obtenerChat(chatId){
+
+ //if(chatCache[chatId]){
+
+  //return chatCache[chatId]
+
+ //}
+
+ //try{
+
+  //const chat = await client.getChatById(chatId)
+
+  //if(chat){
+
+   //chatCache[chatId] = chat
+
+   //return chat
+
+  //}
+
+ //}catch(e){
+
+  //addLog("Error chat "+chatId+" "+e.message)
+
+ //}
+
+ //return null
+
+//}
+
+async function obtenerChat(chatId){
+
+ try{
+
+  if(chatCache[chatId]){
+   return chatCache[chatId]
+  }
+
+  const chats = await client.getChats()
+
+  const chat = chats.find(c => c.id._serialized === chatId)
+
+  if(chat){
+   chatCache[chatId] = chat
+   return chat
+  }
+
+ }catch(e){
+
+  addLog("Error buscando chat "+chatId+" "+e.message)
+
+ }
+
+ return null
+}
+
+/* PROCESAR COLA */
+
+/*async function procesarCola(){
+
+ if(procesandoCola) return
+
+ if(colaMensajes.length===0) return
+
+ if(botStatus!=="ready") return
+
+ procesandoCola=true
+
+ const msg = colaMensajes.shift()
+
+ try{
+
+  addLog("Procesando mensaje "+msg.id)
+
+let enviado = false
+
+  const grupos = msg.grupos.split(",")
+
+  for(const grupo of grupos){
+
+   const chatId = grupo.trim()
+
+   addLog("Preparando envio "+chatId)
+
+   const chat = await obtenerChat(chatId)
+
+   if(!chat){
+
+    addLog("Grupo no encontrado "+chatId)
+
+    continue
+
+   }
+
+   await new Promise(r=>setTimeout(r,4000))
+
+   let filePath = msg.archivo
+    ? "/root/panel/uploads/"+msg.archivo
+    : null
+
+   if(filePath && fs.existsSync(filePath)){
+
+    const media = MessageMedia.fromFilePath(filePath)
+
+    await enviarConTimeout(
+
+     chat.sendMessage(media,{
+      caption:msg.texto||""
+     })
+
+    )
+
+   }else{
+
+    await enviarConTimeout(
+
+     chat.sendMessage(msg.texto||"")
+
+    )
+
+   }
+
+   addLog("Mensaje enviado a "+chatId)
+
+   await new Promise(r=>setTimeout(r,10000))
+
+  }
+
+  db.run(
+
+   `UPDATE mensajes SET estado='enviado' WHERE id=?`,
+
+   [msg.id]
+
+  )
+
+  addLog("Mensaje completado "+msg.id)
+
+ }catch(e){
+
+  addLog("Error envio "+e.message)
+
+  msg.retries = (msg.retries||0)+1
+
+  if(msg.retries < 3){
+
+   addLog("Reintentando "+msg.id)
+
+   setTimeout(()=>{
+
+    colaMensajes.push(msg)
+
+   },30000)
+
+  }else{
+
+   db.run(
+
+    `UPDATE mensajes SET estado='error' WHERE id=?`,
+
+    [msg.id]
+
+   )
+
+   addLog("Mensaje descartado "+msg.id)
+
+  }
+
+ }finally{
+
+  procesandoCola=false
+
+ }
+
+}*/
+
+async function procesarCola(){
+
+ if(procesandoCola) return
+ if(colaMensajes.length===0) return
+ if(botStatus!=="ready") return
+
+ procesandoCola = true
+
+ const msg = colaMensajes.shift()
+
+ try{
+
+  addLog("Procesando mensaje "+msg.id)
+
+  let enviado = false
+
+  const grupos = msg.grupos.split(",")
+
+  for(const grupo of grupos){
+
+   const chatId = grupo.trim()
+
+   addLog("Preparando envio "+chatId)
+
+//TEST VERIFICAR EL ESTADO DEL CLIENTE
+
+const estado = await client.getState()
+addLog("Estado cliente: " + estado)
+
+//TEST
+   const chat = await obtenerChat(chatId)
+
+   if(!chat){
+
+    addLog("Grupo no encontrado "+chatId)
+    continue
+
+   }
+
+   await new Promise(r=>setTimeout(r,4000))
+
+   let filePath = msg.archivo
+    ? "/root/panel/uploads/"+msg.archivo
+    : null
+
+   if(filePath && fs.existsSync(filePath)){
+
+    const media = MessageMedia.fromFilePath(filePath)
+
+    await enviarConTimeout(
+     chat.sendMessage(media,{
+      caption:msg.texto || ""
+     })
+    )
+
+   }else{
+
+    await enviarConTimeout(
+     chat.sendMessage(msg.texto || "")
+    )
+
+   }
+
+   enviado = true
+
+   addLog("Mensaje enviado a "+chatId)
+
+   await new Promise(r=>setTimeout(r,10000))
+
+  }
+
+  if(enviado){
+
+   db.run(
+    `UPDATE mensajes SET estado='enviado' WHERE id=?`,
+    [msg.id]
+   )
+
+   addLog("Mensaje completado "+msg.id)
+
+  }else{
+
+   throw new Error("No se pudo enviar a ningún grupo")
+
+  }
+
+ }catch(e){
+
+  addLog("Error envio "+e.message)
+
+  msg.retries = (msg.retries || 0) + 1
+
+  if(msg.retries < 3){
+
+   addLog("Reintentando "+msg.id)
+
+   setTimeout(()=>{
+    colaMensajes.push(msg)
+   },30000)
+
+  }else{
+
+   db.run(
+    `UPDATE mensajes SET estado='error' WHERE id=?`,
+    [msg.id]
+   )
+
+   addLog("Mensaje descartado "+msg.id)
+
+  }
+
+ }finally{
+
+  procesandoCola = false
+
+ }
+
+}
+
+/* TIMEOUT ENVIO */
+
+async function enviarConTimeout(promise,tiempo=180000){
 
  return Promise.race([
+
   promise,
+
   new Promise((_,reject)=>
+
    setTimeout(()=>reject(new Error("Timeout enviando mensaje")),tiempo)
+
   )
- ]);
+
+ ])
 
 }
 
-/* STATUS */
+/* WATCHDOG */
+
+async function watchdog(){
+
+ if(botStatus!=="ready") return
+
+ try{
+
+  if(!client.pupPage){
+
+   addLog("Watchdog: pagina perdida")
+
+   process.exit(1)
+
+  }
+
+ }catch(e){
+
+  addLog("Watchdog error "+e.message)
+
+ }
+
+}
+
+/* INTERVALOS */
+
+setInterval(worker,20000)
+setInterval(procesarCola,12000)
+setInterval(watchdog,180000)
+
+//test de DOM
+
+setInterval(async ()=>{
+
+ try{
+
+  const title = await client.pupPage.evaluate(()=>document.title)
+
+  addLog("DOM activo: " + title)
+
+ }catch(e){
+
+  addLog("DOM congelado: " + e.message)
+
+ }
+
+},60000)
+
+//TEST DETECATR CONGELAMIENTO
+/* API STATUS */
 
 app.get("/status",(req,res)=>{
 
-let whatsappState = "unknown"
+ res.json({
 
-try{
+  status:botStatus,
+  cola:colaMensajes.length,
+  lastReady:lastReady
 
-whatsappState = client.info ? "connected" : "not_ready"
-
-}catch(e){
-
-whatsappState = "error"
-
-}
-
-res.json({
-
-status:botStatus,
-whatsapp:whatsappState,
-uptime:process.uptime(),
-memory:process.memoryUsage(),
-lastReady:lastReady
+ })
 
 })
 
-})
-
-/* LOGS */
-
-app.get("/logs",(req,res)=>{
-
-res.json({
-logs:logs
-})
-
-})
-
-/* QR */
+/* API QR */
 
 app.get("/qr",(req,res)=>{
 
-if(!qrCodeBase64){
+ if(!qrCodeBase64){
 
-return res.json({status:"no_qr"})
+  return res.json({status:"no_qr"})
 
-}
+ }
 
-res.json({qr:qrCodeBase64})
-
-})
-
-/* REINICIAR BOT */
-
-app.post("/restart",(req,res)=>{
-
-addLog("Reinicio solicitado desde panel")
-
-res.json({success:true})
-
-process.exit(0)
+ res.json({qr:qrCodeBase64})
 
 })
 
-/* LIMPIAR SESION */
+/* API LOGS */
 
-app.post("/reset-session",(req,res)=>{
+app.get("/logs",(req,res)=>{
 
-addLog("Limpiando sesión WhatsApp")
-
-try{
-
-fs.rmSync("/root/bot-whatsapp/chrome-session",{recursive:true,force:true})
-
-res.json({success:true})
-
-process.exit(0)
-
-}catch(err){
-
-res.json({success:false,error:err.message})
-
-}
+ res.json({logs:logs})
 
 })
 
-/* MEMORIA */
-
-app.get("/memory",(req,res)=>{
-
-res.json({
-memory:memoryHistory
-})
-
-})
-
-/* SERVIDOR */
+/* START API */
 
 app.listen(3001,"0.0.0.0",()=>{
 
-console.log("API BOT escuchando en puerto 3001")
+ console.log("API BOT escuchando en puerto 3001")
 
 })
