@@ -13,6 +13,22 @@ db.exec("PRAGMA journal_mode=WAL;")
 
 const app = express()
 
+/* SEGURIDAD API */
+
+const API_KEY = "redimidos_bot_2026";
+
+app.use((req,res,next)=>{
+
+const key = req.headers["x-api-key"];
+
+if(key !== API_KEY){
+return res.status(403).json({ error: "No autorizado" });
+}
+
+next();
+
+});
+
 /* ESTADO BOT */
 
 let botStatus = "starting"

@@ -1,5 +1,5 @@
-2026/03/16-11:05:52.727 58a7b Recovering log #210
-2026/03/16-11:05:52.736 58a7b Level-0 table #213: started
-2026/03/16-11:05:52.742 58a7b Level-0 table #213: 3042 bytes OK
-2026/03/16-11:05:52.760 58a7b Delete type=3 #208
-2026/03/16-11:05:52.762 58a7b Delete type=0 #210
+2026/03/16-20:44:40.112 5a98b Recovering log #214
+2026/03/16-20:44:40.120 5a98b Level-0 table #216: started
+2026/03/16-20:44:40.129 5a98b Level-0 table #216: 3043 bytes OK
+2026/03/16-20:44:40.147 5a98b Delete type=0 #214
+2026/03/16-20:44:40.147 5a98b Delete type=3 #212
