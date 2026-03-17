@@ -9,6 +9,14 @@
 
 <input type="hidden" name="texto" id="texto">
 
+<h3>Vista previa</h3>
+
+<div class="whatsapp-preview">
+
+<div class="whatsapp-bubble" id="preview-text"></div>
+
+</div>
+
 <div class="form-group">
 
 <label>Plataforma</label>
@@ -22,14 +30,6 @@ WhatsApp
 <input type="checkbox" name="plataforma" value="facebook">
 Facebook
 </label>
-
-</div>
-
-<h3>Vista previa</h3>
-
-<div class="whatsapp-preview">
-
-<div class="whatsapp-bubble" id="preview-text"></div>
 
 </div>
 
@@ -64,24 +64,7 @@ Video Facebook: 50MB
 </p>
 
 <label>Grupos de WhatsApp</label>
-
-<div class="grupo-lista">
-
-<% grupos.forEach(function(g){ %>
-
-<label class="grupo-item">
-
-<input type="checkbox" name="grupos" value="<%= g.chat_id %>">
-
-<%= g.nombre %>
-
-</label>
-
-<% }) %>
-
-</div>
- 
-
+<input type="text" name="grupos">
 
 <label>Fecha</label>
 <input type="date" name="fecha">
@@ -167,14 +150,6 @@ toolbar:[
 [{ 'list': 'ordered'}, { 'list': 'bullet'}]
 ]
 }
-})
-
-const preview = document.getElementById("preview-text")
-
-quill.on('text-change', function(){
-
-preview.innerHTML = quill.root.innerHTML
-
 })
 
 const form = document.querySelector("form")

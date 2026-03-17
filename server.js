@@ -38,6 +38,22 @@ app.use(express.urlencoded({ extended:true }));
 app.use(express.static("public"));
 app.use("/uploads",express.static("uploads"));
 
+// 🔐 Requiere login
+function requireAuth(req, res, next) {
+    if (!req.session.user) {
+        return res.redirect("/login");
+    }
+    next();
+}
+
+// 🔐 Solo admin
+function requireAdmin(req, res, next) {
+    if (!req.session.user || req.session.user.role !== "admin") {
+        return res.status(403).send("Acceso denegado");
+    }
+    next();
+}
+
 /* SESIONES */
 
 app.use(
@@ -62,7 +78,8 @@ app.use(passport.session());
 
 app.use((req,res,next)=>{
 
-res.locals.user = req.user;
+//res.locals.user = req.user;
+res.locals.user = req.session.user;
 
 res.locals.active = "";
 
@@ -76,10 +93,12 @@ app.use("/",authRoutes);
 app.use("/",mensajesRoutes);
 app.use("/",usuariosRoutes);
 
+//app.use("/", require("./routes/mensajes.routes"));
+
 /* eventos */
 
-app.get("/bot/logs", async (req,res)=>{
-
+//app.get("/bot/logs", async (req,res)=>{
+app.get("/bot/logs", requireAuth, requireAdmin, async (req,res)=>{
 try{
 
 const response = await axios.get("http://localhost:3001/logs")
@@ -96,7 +115,9 @@ res.json({logs:[]})
 
 /* API BOT WHATSAPP */
 
-app.get("/bot/status", async (req,res)=>{
+//app.get("/bot/status", async (req,res)=>{
+
+app.get("/bot/status", requireAuth, requireAdmin, async (req,res)=>{
 
 try{
 
@@ -114,15 +135,15 @@ status:"offline"
 
 });
 
-app.get("/bot/memory", async (req,res)=>{
-
+//app.get("/bot/memory", async (req,res)=>{
+app.get("/bot/memory", requireAuth, requireAdmin, async (req,res)=>{
 try{
 
 const response = await axios.get("http://localhost:3001/memory")
 
 res.json(response.data)
 
-}catch(err){
+}capp.get("/bot/logs", requireAuth, requireAdmin, async (req,res)=>{atch(err){
 
 res.json({memory:[]})
 
@@ -132,14 +153,17 @@ res.json({memory:[]})
 
 
 
-app.get("/bot", (req,res)=>{
+//app.get("/bot", (req,res)=>{
+
+app.get("/bot", requireAuth, requireAdmin, (req,res)=>{
 
 res.render("bot");
 
 });
 
-app.get("/bot/qr", async (req,res)=>{
-
+//app.get("/bot/qr", async (req,res)=>{
+app.get("/bot/qr", requireAuth, requireAdmin, async (req,res)=>{
+app.get("/bot/logs", requireAuth, requireAdmin, async (req,res)=>{
 try{
 
 const response = await axios.get("http://localhost:3001/qr");
@@ -158,8 +182,8 @@ status:"error"
 
 /* REINICIAR BOT */
 
-app.post("/bot/restart", async (req,res)=>{
-
+//app.post("/bot/restart", async (req,res)=>{
+app.post("/bot/restart", requireAuth, requireAdmin, async (req,res)=>{
 try{
 
 await axios.post("http://localhost:3001/restart")
@@ -176,8 +200,8 @@ res.json({success:false})
 
 /* RESET SESION */
 
-app.post("/bot/reset", async (req,res)=>{
-
+//app.post("/bot/reset", async (req,res)=>{
+app.post("/bot/reset", requireAuth, requireAdmin, async (req,res)=>{
 try{
 
 await axios.post("http://localhost:3001/reset-session")

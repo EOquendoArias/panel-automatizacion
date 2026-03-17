@@ -34,13 +34,13 @@ hoy: hoy.total
 exports.programados = (req,res)=>{
 
 db.all(
-"SELECT * FROM mensajes ORDER BY fecha ASC",
-[],
+`SELECT * FROM mensajes 
+WHERE estado != 'enviado'
+ORDER BY fecha, hora`,
 (err,rows)=>{
 
 res.render("pages/programados",{
 user:req.user,
-active:"programados",
 mensajes:rows
 });
 
@@ -75,10 +75,15 @@ mensajes:rows
 
 exports.nuevoMensaje = (req,res)=>{
 
+db.all("SELECT * FROM grupos ORDER BY nombre",(err,grupos)=>{
+
 res.render("pages/nuevo_mensaje",{
 user:req.user,
 active:"nuevo",
-error:null
+error:null,
+grupos:grupos
+});
+
 });
 
 };
@@ -89,9 +94,23 @@ error:null
 
 exports.guardarMensaje = (req,res)=>{
 
-const { texto, fecha, hora, grupos } = req.body;
+let { texto, fecha, hora, grupos } = req.body;
 
 const archivo = req.file ? req.file.filename : null;
+
+/* CONVERTIR HTML DEL EDITOR → FORMATO WHATSAPP */
+
+texto = texto
+.replace(/<strong>(.*?)<\/strong>/g,'*$1*')
+.replace(/<b>(.*?)<\/b>/g,'*$1*')
+.replace(/<em>(.*?)<\/em>/g,'_$1_')
+.replace(/<i>(.*?)<\/i>/g,'_$1_')
+.replace(/<s>(.*?)<\/s>/g,'~$1~')
+.replace(/<strike>(.*?)<\/strike>/g,'~$1~')
+.replace(/<p>/g,'')
+.replace(/<\/p>/g,"\n")
+.replace(/<br>/g,"\n")
+.replace(/<[^>]+>/g,'')
 
 const sql = `
 INSERT INTO mensajes
@@ -213,6 +232,100 @@ row.hora,
 );
 
 res.redirect("/programados");
+
+});
+
+};
+
+/* REINTENTAR MENSAJE */
+
+exports.reintentarMensaje = (req,res)=>{
+
+const id = req.params.id;
+
+db.run(
+"UPDATE mensajes SET estado='pendiente' WHERE id=?",
+[id],
+(err)=>{
+
+res.redirect("/programados");
+
+}
+);
+
+};
+
+/* NUEVO USUARIO */
+
+exports.nuevoUsuario = (req,res)=>{
+
+res.render("pages/nuevo_usuario",{
+user:req.user
+});
+
+};
+
+/* CREAR USUARIO */
+
+exports.crearUsuario = (req,res)=>{
+
+const { nombre, email, rol } = req.body;
+
+db.run(
+"INSERT INTO usuarios (nombre,email,rol) VALUES (?,?,?)",
+[nombre,email,rol],
+(err)=>{
+
+res.redirect("/usuarios");
+
+}
+);
+
+};
+
+/* CAMBIAR ROLL */
+
+exports.cambiarRol = (req,res)=>{
+
+const id = req.params.id;
+const { rol } = req.body;
+
+/* verificar cuantos admins hay */
+
+db.get(
+"SELECT COUNT(*) as total FROM usuarios WHERE rol='admin'",
+(err,row)=>{
+
+const totalAdmins = row.total;
+
+/* verificar rol actual */
+
+db.get(
+"SELECT rol FROM usuarios WHERE id=?",
+[id],
+(err,user)=>{
+
+/* si es el último admin no permitir cambio */
+
+if(user.rol === "admin" && rol !== "admin" && totalAdmins <= 1){
+
+return res.send("⚠ No puedes quitar el último administrador del sistema.");
+
+}
+
+/* actualizar rol */
+
+db.run(
+"UPDATE usuarios SET rol=? WHERE id=?",
+[rol,id],
+(err)=>{
+
+res.redirect("/usuarios");
+
+}
+);
+
+});
 
 });
 

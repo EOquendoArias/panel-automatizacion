@@ -1,5 +1,11 @@
 <h2>Usuarios</h2>
 
+<div style="margin-bottom:15px;">
+<a href="/usuarios/nuevo" class="btn">
+➕ Nuevo usuario
+</a>
+</div>
+
 <table>
 
 <tr>
@@ -12,10 +18,33 @@
 <% usuarios.forEach(function(u){ %>
 
 <tr>
+
 <td><%= u.id %></td>
+
 <td><%= u.nombre %></td>
+
 <td><%= u.email %></td>
-<td><%= u.rol %></td>
+
+<td>
+
+<form action="/usuarios/cambiar-rol/<%= u.id %>" method="POST">
+
+<select name="rol" onchange="this.form.submit()">
+
+<option value="viewer" <%= u.rol=="viewer"?"selected":"" %>>
+viewer
+</option>
+
+<option value="admin" <%= u.rol=="admin"?"selected":"" %>>
+admin
+</option>
+
+</select>
+
+</form>
+
+</td>
+
 </tr>
 
 <% }) %>

@@ -1,0 +1,28 @@
+<div class="card">
+
+<h2>Nuevo Usuario</h2>
+
+<form action="/usuarios/crear" method="POST">
+
+<label>Nombre</label>
+<input type="text" name="nombre" required>
+
+<label>Email</label>
+<input type="email" name="email" required>
+
+<label>Rol</label>
+
+<select name="rol">
+
+<option value="viewer">Viewer</option>
+<option value="admin">Admin</option>
+
+</select>
+
+<br><br>
+
+<button type="submit">Crear Usuario</button>
+
+</form>
+
+</div>

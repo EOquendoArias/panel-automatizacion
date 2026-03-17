@@ -28,17 +28,16 @@ fileSize: 50 * 1024 * 1024
 
 });
 
-
-
 function ensureAuth(req,res,next){
 
-if(req.isAuthenticated()){
+if(req.user){
 return next();
 }
 
 res.redirect("/login");
 
 }
+
 
 /* DASHBOARD */
 
@@ -99,3 +98,19 @@ router.get("/mensajes/eliminar/:id", ensureAuth, mensajesController.eliminarMens
 router.get("/mensajes/duplicar/:id", ensureAuth, mensajesController.duplicarMensaje);
 
 module.exports = router;
+
+/* REINTENTAR */
+
+router.get( "/mensajes/reintentar/:id", ensureAuth, mensajesController.reintentarMensaje);
+
+/* NUEVO USUARIO */
+
+router.get("/usuarios/nuevo", ensureAuth, mensajesController.nuevoUsuario);
+
+/* CREAR USUARIO */
+
+router.post("/usuarios/crear", ensureAuth, mensajesController.crearUsuario);
+
+/* CAMBIAR ROL */
+
+router.post("/usuarios/cambiar-rol/:id", ensureAuth, mensajesController.cambiarRol);
