@@ -90,13 +90,24 @@ grupos:grupos
 
 
 
-/* GUARDAR MENSAJE */
 
+/* GUARDAR MENSAJE */
 exports.guardarMensaje = (req,res)=>{
 
-let { texto, fecha, hora, grupos } = req.body;
+    let { texto, fecha, hora, grupos } = req.body;
+    const archivo = req.file ? req.file.filename : null;
 
-const archivo = req.file ? req.file.filename : null;
+    // --- CORRECCIÓN PARA EVITAR EL [object Object] ---
+    if (typeof grupos === 'object' && grupos !== null) {
+        // Si es un array (varios grupos), los une con comas
+        if (Array.isArray(grupos)) {
+            grupos = grupos.join(',');
+        } else {
+            // Si es un objeto solo, intenta sacar el ID o lo vuelve texto
+            grupos = grupos.id || grupos.value || JSON.stringify(grupos);
+        }
+    }
+    // -------------------------------------------------
 
 /* CONVERTIR HTML DEL EDITOR → FORMATO WHATSAPP */
 
