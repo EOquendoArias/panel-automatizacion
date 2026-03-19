@@ -1,6 +1,11 @@
 const db = require("../database");
+//---------//
+const axios = require("axios");
+const fs = require("fs");
+const FormData = require("form-data");
+const path = require("path");
 
-
+//-------//
 /* DASHBOARD */
 
 exports.dashboard = (req,res)=>{
@@ -88,68 +93,64 @@ grupos:grupos
 
 };
 
-
-
-
 /* GUARDAR MENSAJE */
-exports.guardarMensaje = (req,res)=>{
-
-    let { texto, fecha, hora, grupos } = req.body;
+exports.guardarMensaje = (req, res) => {
+    // 1. Extraemos los datos del formulario
+    let { texto, fecha, hora, grupos, plataforma } = req.body;
     const archivo = req.file ? req.file.filename : null;
 
-    // --- CORRECCIÓN PARA EVITAR EL [object Object] ---
+    // 2. CAPTURAMOS EL NOMBRE DEL LÍDER (De tu tabla 'usuarios')
+    // Usamos 'req.user.nombre' porque vimos que así se llama en tu schema
+    const autor = (req.user && req.user.nombre) ? req.user.nombre : "Líder Redimidos";
+
+    // 3. Convertimos 'plataforma' en una lista para manejarla fácil
+    const elecciones = Array.isArray(plataforma) ? plataforma : (plataforma ? [plataforma] : []);
+
+    const enviarAWhatsapp = elecciones.includes('whatsapp');
+    const enviarAFacebook = elecciones.includes('facebook');
+
+    // 4. Lógica de estado inicial
+    let estadoInicial = enviarAWhatsapp ? "pendiente" : "enviado";
+
+    // --- CORRECCIÓN [object Object] ---
     if (typeof grupos === 'object' && grupos !== null) {
-        // Si es un array (varios grupos), los une con comas
-        if (Array.isArray(grupos)) {
-            grupos = grupos.join(',');
-        } else {
-            // Si es un objeto solo, intenta sacar el ID o lo vuelve texto
-            grupos = grupos.id || grupos.value || JSON.stringify(grupos);
-        }
+        grupos = Array.isArray(grupos) ? grupos.join(',') : (grupos.id || grupos.value || JSON.stringify(grupos));
     }
-    // -------------------------------------------------
 
-/* CONVERTIR HTML DEL EDITOR → FORMATO WHATSAPP */
+    // Limpieza de formato HTML para WhatsApp
+    if (texto) {
+        texto = texto
+            .replace(/<b>(.*?)<\/b>/g, '*$1*')
+            .replace(/<em>(.*?)<\/em>/g, '_$1_')
+            .replace(/<i>(.*?)<\/i>/g, '_$1_')
+            .replace(/<s>(.*?)<\/s>/g, '~$1~')
+            .replace(/<p>/g, '')
+            .replace(/<\/p>/g, "\n")
+            .replace(/<br>/g, "\n")
+            .replace(/<[^>]+>/g, '');
+    }
 
-texto = texto
-.replace(/<strong>(.*?)<\/strong>/g,'*$1*')
-.replace(/<b>(.*?)<\/b>/g,'*$1*')
-.replace(/<em>(.*?)<\/em>/g,'_$1_')
-.replace(/<i>(.*?)<\/i>/g,'_$1_')
-.replace(/<s>(.*?)<\/s>/g,'~$1~')
-.replace(/<strike>(.*?)<\/strike>/g,'~$1~')
-.replace(/<p>/g,'')
-.replace(/<\/p>/g,"\n")
-.replace(/<br>/g,"\n")
-.replace(/<[^>]+>/g,'')
+    // 5. SQL ACTUALIZADO (Añadimos la columna 'usuario' y un '?' extra)
+    const sql = `INSERT INTO mensajes (texto, archivo, grupos, fecha, hora, estado, usuario) VALUES (?,?,?,?,?,?,?)`;
 
-const sql = `
-INSERT INTO mensajes
-(texto, archivo, grupos, fecha, hora, estado)
-VALUES
-(?,?,?,?,?,?)
-`;
+    // 6. Ejecutamos incluyendo el 'autor' al final del arreglo
+    db.run(sql, [texto, archivo, grupos, fecha, hora, estadoInicial, autor], function(err) {
+        if (err) {
+            console.error("❌ Error DB:", err.message);
+            return res.status(500).send("Error al guardar");
+        }
 
-db.run(
-sql,
-[
-texto,
-archivo,
-grupos,
-fecha,
-hora,
-"pendiente"
-],
-(err)=>{
+        // 7. SOLO publicar en Facebook si el checkbox estaba marcado
+        if (enviarAFacebook) {
+            publicarEnFacebook(texto, archivo);
+        }
 
-res.redirect("/programados");
-
-}
-);
-
+        res.redirect("/programados");
+    });
 };
 
 
+    // -------------------------------------------------
 
 /* EDITAR MENSAJE */
 
@@ -210,61 +211,47 @@ res.redirect("/programados");
 
 };
 
+/* DUPLICAR MENSAJE (Reenviar) */
+exports.duplicarMensaje = (req, res) => {
+    const id = req.params.id;
 
+    db.get("SELECT * FROM mensajes WHERE id=?", [id], (err, row) => {
+        if (err || !row) return res.redirect("/programados");
 
-/* DUPLICAR MENSAJE */
-
-exports.duplicarMensaje = (req,res)=>{
-
-const id = req.params.id;
-
-db.get(
-"SELECT * FROM mensajes WHERE id=?",
-[id],
-(err,row)=>{
-
-const sql = `
-INSERT INTO mensajes
-(texto, archivo, grupos, fecha, hora, estado)
-VALUES
-(?,?,?,?,?,?)
-`;
-
-db.run(
-sql,
-[
-row.texto,
-row.archivo,
-row.grupos,
-row.fecha,
-row.hora,
-"pendiente"
-]
-);
-
-res.redirect("/programados");
-
-});
-
+        const sql = `INSERT INTO mensajes (texto, archivo, grupos, fecha, hora, estado) VALUES (?,?,?,?,?,?)`;
+        
+        // Guardamos la copia
+        db.run(sql, [row.texto, row.archivo, row.grupos, row.fecha, row.hora, "pendiente"], function(err) {
+            if (!err) {
+                // Si se guardó bien, publicamos en Facebook
+                publicarEnFacebook(row.texto, row.archivo);
+            }
+            res.redirect("/programados");
+        });
+    });
 };
 
 /* REINTENTAR MENSAJE */
+exports.reintentarMensaje = (req, res) => {
+    const id = req.params.id;
 
-exports.reintentarMensaje = (req,res)=>{
+    db.get("SELECT * FROM mensajes WHERE id=?", [id], (err, row) => {
+        if (err || !row) return res.redirect("/programados");
 
-const id = req.params.id;
-
-db.run(
-"UPDATE mensajes SET estado='pendiente' WHERE id=?",
-[id],
-(err)=>{
-
-res.redirect("/programados");
-
-}
-);
-
+        // Cambiamos el estado de 'error' a 'pendiente' para que el bot lo intente de nuevo
+        db.run("UPDATE mensajes SET estado='pendiente' WHERE id=?", [id], function(err) {
+            if (!err) {
+                // Intentamos publicar en Facebook nuevamente
+                publicarEnFacebook(row.texto, row.archivo);
+            }
+            res.redirect("/programados");
+        });
+    });
 };
+
+
+
+
 
 /* NUEVO USUARIO */
 
@@ -341,3 +328,38 @@ res.redirect("/usuarios");
 });
 
 };
+
+/* publicar en Facebook */
+
+async function publicarEnFacebook(mensaje, nombreArchivo) {
+    const pageId = process.env.FB_PAGE_ID;
+    const token = process.env.FB_PAGE_TOKEN;
+    
+    // Si hay archivo usamos /photos, si no /feed
+    const endpoint = nombreArchivo ? `/${pageId}/photos` : `/${pageId}/feed`;
+    const url = `https://graph.facebook.com/v21.0${endpoint}`;
+
+    try {
+        const form = new FormData();
+        form.append('access_token', token);
+        
+        if (nombreArchivo) {
+            // Buscamos la imagen en la carpeta uploads
+            const rutaImagen = path.join(__dirname, '../uploads', nombreArchivo);
+            if (fs.existsSync(rutaImagen)) {
+                form.append('source', fs.createReadStream(rutaImagen));
+                form.append('caption', mensaje);
+            } else {
+                console.error("❌ Archivo no encontrado en:", rutaImagen);
+                form.append('message', mensaje);
+            }
+        } else {
+            form.append('message', mensaje);
+        }
+
+        await axios.post(url, form, { headers: form.getHeaders() });
+        console.log("✅ Publicado en Facebook con éxito");
+    } catch (error) {
+        console.error("❌ Error Facebook API:", error.response ? error.response.data : error.message);
+    }
+}

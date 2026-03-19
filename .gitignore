@@ -4,3 +4,20 @@ uploads
 bot.db
 chrome-session
 .webjs_cache
+# Secretos y Configuración
+.env
+
+# Base de datos (No queremos subir los mensajes reales)
+*.db
+*.db-journal
+*.sqlite
+
+# Dependencias (Se instalan con npm install, no se suben)
+node_modules/
+
+# Archivos subidos (Las imágenes de los mensajes)
+uploads/
+
+# Logs de PM2 y errores
+*.log
+/root/.pm2/logs/
