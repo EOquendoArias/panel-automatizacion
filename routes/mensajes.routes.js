@@ -114,3 +114,6 @@ router.post("/usuarios/crear", ensureAuth, mensajesController.crearUsuario);
 /* CAMBIAR ROL */
 
 router.post("/usuarios/cambiar-rol/:id", ensureAuth, mensajesController.cambiarRol);
+
+/* CALENDARIO */
+router.get('/calendario', mensajesController.verCalendario);

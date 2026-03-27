@@ -75,76 +75,66 @@ mensajes:rows
 };
 
 
+/* NUEVO MENSAJE (Versión con Memoria de Fecha) */
+exports.nuevoMensaje = (req, res) => {
+    // 1. Detectamos si viene una fecha en la URL (ej: ?fecha=2026-03-28)
+    const fechaPrevia = req.query.fecha || ""; 
 
-/* NUEVO MENSAJE */
+    db.all("SELECT * FROM grupos ORDER BY nombre", (err, grupos) => {
+        if (err) {
+            console.error("Error al cargar grupos:", err);
+            return res.status(500).send("Error interno");
+        }
 
-exports.nuevoMensaje = (req,res)=>{
-
-db.all("SELECT * FROM grupos ORDER BY nombre",(err,grupos)=>{
-
-res.render("pages/nuevo_mensaje",{
-user:req.user,
-active:"nuevo",
-error:null,
-grupos:grupos
-});
-
-});
-
+        res.render("pages/nuevo_mensaje", {
+            user: req.user,
+            active: "nuevo",
+            error: null,
+            grupos: grupos,
+            fechaPrevia: fechaPrevia // <--- Le pasamos la fecha a la vista
+        });
+    });
 };
 
-/* GUARDAR MENSAJE */
+/* GUARDAR MENSAJE (Versión Maestra: HTML Puro + Seguridad de Grupos) */
 exports.guardarMensaje = (req, res) => {
-    // 1. Extraemos los datos del formulario
+    // 1. Recibimos los datos del formulario (Texto llega como HTML desde Quill)
     let { texto, fecha, hora, grupos, plataforma } = req.body;
     const archivo = req.file ? req.file.filename : null;
 
-    // 2. CAPTURAMOS EL NOMBRE DEL LÍDER (De tu tabla 'usuarios')
-    // Usamos 'req.user.nombre' porque vimos que así se llama en tu schema
+    // 2. Identificamos al autor
     const autor = (req.user && req.user.nombre) ? req.user.nombre : "Líder Redimidos";
 
-    // 3. Convertimos 'plataforma' en una lista para manejarla fácil
+    // 3. Procesamos las plataformas (Convertimos array a texto "whatsapp,facebook")
     const elecciones = Array.isArray(plataforma) ? plataforma : (plataforma ? [plataforma] : []);
+    const plataformasString = elecciones.join(',');
 
-    const enviarAWhatsapp = elecciones.includes('whatsapp');
-    const enviarAFacebook = elecciones.includes('facebook');
+    // 4. Estado inicial para el bot
+    let estadoInicial = elecciones.length > 0 ? "pendiente" : "enviado";
 
-    // 4. Lógica de estado inicial
-    let estadoInicial = enviarAWhatsapp ? "pendiente" : "enviado";
+    // 5. --- AQUÍ YA NO TRADUCIMOS --- 
+    // Guardamos 'texto' tal cual viene (con sus <p>, <b>, etc.) 
+    // para que al editarlo se vea perfecto en el panel.
 
-    // --- CORRECCIÓN [object Object] ---
+    // 6. Arreglo de Grupos (Tu lógica de seguridad para evitar [object Object])
     if (typeof grupos === 'object' && grupos !== null) {
         grupos = Array.isArray(grupos) ? grupos.join(',') : (grupos.id || grupos.value || JSON.stringify(grupos));
+    } else if (!grupos) {
+        grupos = ""; // Evitamos nulos si no seleccionó nada
     }
 
-    // Limpieza de formato HTML para WhatsApp
-    if (texto) {
-        texto = texto
-            .replace(/<b>(.*?)<\/b>/g, '*$1*')
-            .replace(/<em>(.*?)<\/em>/g, '_$1_')
-            .replace(/<i>(.*?)<\/i>/g, '_$1_')
-            .replace(/<s>(.*?)<\/s>/g, '~$1~')
-            .replace(/<p>/g, '')
-            .replace(/<\/p>/g, "\n")
-            .replace(/<br>/g, "\n")
-            .replace(/<[^>]+>/g, '');
-    }
+    // 7. Guardamos en la base de datos (SQL Reparado y Completo)
+    const sql = `INSERT INTO mensajes (texto, archivo, grupos, fecha, hora, estado, usuario, plataforma) 
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`;
 
-    // 5. SQL ACTUALIZADO (Añadimos la columna 'usuario' y un '?' extra)
-    const sql = `INSERT INTO mensajes (texto, archivo, grupos, fecha, hora, estado, usuario) VALUES (?,?,?,?,?,?,?)`;
-
-    // 6. Ejecutamos incluyendo el 'autor' al final del arreglo
-    db.run(sql, [texto, archivo, grupos, fecha, hora, estadoInicial, autor], function(err) {
+    // Pasamos los 8 parámetros en el orden exacto del SQL
+    db.run(sql, [texto, archivo, grupos, fecha, hora, estadoInicial, autor, plataformasString], function(err) {
         if (err) {
-            console.error("❌ Error DB:", err.message);
-            return res.status(500).send("Error al guardar");
+            console.error("❌ Error al guardar en DB:", err.message);
+            return res.status(500).send("Error en la base de datos");
         }
-
-        // 7. SOLO publicar en Facebook si el checkbox estaba marcado
-        if (enviarAFacebook) {
-            publicarEnFacebook(texto, archivo);
-        }
-
+        
+        console.log(`🚀 Mensaje #${this.lastID} guardado en HTML. Listo para programar.`);
         res.redirect("/programados");
     });
 };
@@ -176,20 +166,25 @@ mensaje:row
 
 /* ACTUALIZAR MENSAJE */
 
-exports.actualizarMensaje = (req,res)=>{
+/* ACTUALIZAR MENSAJE (Versión Pro: Mantiene HTML) */
+exports.actualizarMensaje = (req, res) => {
+    const id = req.params.id;
+    let { texto, fecha, hora, grupos, plataforma } = req.body;
 
-const id = req.params.id;
-const { texto, fecha, hora, grupos } = req.body;
+    const plataformaFinal = Array.isArray(plataforma) ? plataforma.join(',') : (plataforma || 'whatsapp');
+    const gruposFinal = Array.isArray(grupos) ? grupos.join(',') : (grupos || '');
 
-db.run(
-"UPDATE mensajes SET texto=?, fecha=?, hora=?, grupos=? WHERE id=?",
-[texto,fecha,hora,grupos,id],
-(err)=>{
+    // Actualizamos manteniendo el HTML enviado por Quill
+    const sql = "UPDATE mensajes SET texto=?, fecha=?, hora=?, grupos=?, plataforma=? WHERE id=?";
+    const params = [texto, fecha, hora, gruposFinal, plataformaFinal, id];
 
-res.redirect("/programados");
-
-});
-
+    db.run(sql, params, (err) => {
+        if (err) {
+            console.error("❌ Error al actualizar:", err.message);
+            return res.status(500).send("Error al actualizar el mensaje");
+        }
+        res.redirect("/programados");
+    });
 };
 
 
@@ -329,37 +324,38 @@ res.redirect("/usuarios");
 
 };
 
-/* publicar en Facebook */
+/* calendario */
 
-async function publicarEnFacebook(mensaje, nombreArchivo) {
-    const pageId = process.env.FB_PAGE_ID;
-    const token = process.env.FB_PAGE_TOKEN;
+exports.verCalendario = (req, res) => {
+    const hoy = new Date();
+    // Obtenemos mes y año de la URL, si no, usamos el actual
+    let mes = parseInt(req.query.mes) || (hoy.getMonth() + 1);
+    let anio = parseInt(req.query.anio) || hoy.getFullYear();
+
+    // Ajuste para navegación (que no se pase de 12 o baje de 1)
+    if (mes > 12) { mes = 1; anio++; }
+    if (mes < 1) { mes = 12; anio--; }
+
+    const mesFormateado = mes < 10 ? `0${mes}` : mes;
+    const filtroFecha = `${anio}-${mesFormateado}-%`; // Busca todo lo de ese mes: 2026-03-%
+
+    const sql = "SELECT id, texto, plataforma, fecha, hora, estado FROM mensajes WHERE fecha LIKE ? ORDER BY fecha, hora ASC";
     
-    // Si hay archivo usamos /photos, si no /feed
-    const endpoint = nombreArchivo ? `/${pageId}/photos` : `/${pageId}/feed`;
-    const url = `https://graph.facebook.com/v21.0${endpoint}`;
-
-    try {
-        const form = new FormData();
-        form.append('access_token', token);
-        
-        if (nombreArchivo) {
-            // Buscamos la imagen en la carpeta uploads
-            const rutaImagen = path.join(__dirname, '../uploads', nombreArchivo);
-            if (fs.existsSync(rutaImagen)) {
-                form.append('source', fs.createReadStream(rutaImagen));
-                form.append('caption', mensaje);
-            } else {
-                console.error("❌ Archivo no encontrado en:", rutaImagen);
-                form.append('message', mensaje);
-            }
-        } else {
-            form.append('message', mensaje);
+    db.all(sql, [filtroFecha], (err, mensajes) => {
+        if (err) {
+            console.error(err);
+            return res.status(500).send("Error al cargar el calendario");
         }
 
-        await axios.post(url, form, { headers: form.getHeaders() });
-        console.log("✅ Publicado en Facebook con éxito");
-    } catch (error) {
-        console.error("❌ Error Facebook API:", error.response ? error.response.data : error.message);
-    }
-}
+        // Nombre del mes para el título
+        const nombreMes = new Intl.DateTimeFormat('es-ES', { month: 'long' }).format(new Date(anio, mes - 1));
+
+        res.render("pages/calendario", {
+            mensajes,
+            mes,
+            anio,
+            nombreMes: nombreMes.charAt(0).toUpperCase() + nombreMes.slice(1),
+	active: 'calendario' // <--- ESTO ES LO IMPORTANTE
+        });
+    });
+};
